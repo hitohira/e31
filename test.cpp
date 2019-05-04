@@ -14,5 +14,10 @@ int main(){
 	double d = p->distance(Vec2(2,5));
 	cout << d << endl;
 	delete p;
+
+	Points pt(4);
+	pt.at(1) = v1;
+	pt.at(3) = v2;
+	cout << pt.at(1).x << endl;
 	return 0;
 }

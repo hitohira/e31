@@ -3,10 +3,11 @@
 using namespace std;
 
 int main(){
-	Clothoid c(Vec2(3.0,2.0),1.4,2.0,0.0,4.0);
-	for(int i = -100; i < 100; i++){
-		Vec2 v = c.posByT(i/20.0);
-		cout << v.x << " " << v.y << endl;
+	int n = 100;
+	Clothoid c(Vec2(3.0,2.0),0.78,1,-0.2,2.0);
+	Points pt = c.GetPoints(n);
+	for(int i = 0; i < n; i++){
+		cout << pt.at(i).x << " " << pt.at(i).y << endl;
 	}
 	return 0;
 }

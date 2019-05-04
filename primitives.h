@@ -2,6 +2,9 @@
 #define PRIMITIVES_H
 
 #include <math.h>
+#include <exception>
+#include <stdexcept>
+
 
 class Vec2{
 public:
@@ -27,7 +30,53 @@ public:
 	Vec2 rot(double theta){ return Vec2(x*cos(theta) - y*sin(theta),x*sin(theta)+y*cos(theta)); }
 };
 
-class Primitives{
+
+class Points{
+private:
+	int sz;
+	Vec2 * idx;
+
+public:
+	Points(){ sz = 0; idx = NULL; }
+	Points(int n){ sz = n; idx = new Vec2[n]; }
+	~Points(){ if(idx != NULL) delete[] idx; }
+	
+	Vec2& at(unsigned int i){
+		if(i >= sz){
+			throw std::runtime_error("invalid access");
+		}
+		return idx[i];
+	}
+	int size(){
+		return sz;
+	}
+
+	Points &operator=(Points &p)
+	{ 
+		if(idx != NULL){
+			delete[] idx;
+		}
+		this->sz = p.sz;
+		this->idx = new Vec2[p.sz];
+		for(int i = 0; i < this->sz; i++){
+			this->at(i) = p.at(i);
+		}
+		return *this;
+	}
+	
+	Vec2 average(){
+		Vec2 sum;
+		for(int i = 0; i < sz; i++){
+			sum += idx[i];
+		}
+		return sum.times(1.0/sz);
+	}
+	
+
+};
+
+
+class Primitives {
 public:
 	Vec2 start_point;
 	double start_angle;
@@ -39,7 +88,9 @@ public:
 	}
 	virtual ~Primitives(){}
 
-	virtual double distance(Vec2 v){};
+	virtual double distance(Vec2 v){ return 0.0; };
+
+	virtual Points GetPoints(int n){ return Points();};
 };
 
 class Line : public Primitives{
@@ -47,7 +98,6 @@ public:
 	Line() : Primitives(){}
 	Line(Vec2 sp,double sa,double l) : Primitives(sp,sa,l){}
 	~Line(){}
-
 
 	double distance(Vec2 v) override{
 		Vec2 vv = start_point - v;
@@ -63,6 +113,16 @@ public:
 		else{
 			return fabs((ab.x*vv.y - ab.y*vv.x))/sqrt(aabb);
 		}
+	}
+	
+	Points GetPoints(int n) override{
+		Points pt(n);
+		pt.at(0) = start_point;
+		for(int i = 1; i < n; i++){
+			double l = length / (n-1) * i;
+			pt.at(i) = start_point + Vec2(l*cos(start_angle),l*sin(start_angle));
+		}
+		return pt;
 	}
 };
 
@@ -116,7 +176,21 @@ public:
 				return (vv - Vec2(r,0)).norm2();
 			}
 		}
+	}
 
+	Points GetPoints(int n) override{
+		Points pt(n);
+		pt.at(0) = start_point;
+		double r = radius();
+		Vec2 vc = vecToCenter();
+		Vec2 vcinv = vc.times(-1);
+		Vec2 center = start_point + vc;
+		double arot = length * start_curvature; // 回転角(時計回り)
+		for(int i = 1; i < n; i++){
+			double a = arot / (n-1) * i;
+			pt.at(i) = center + vcinv.rot(a);	
+		}
+		return pt;
 	}
 };
 
@@ -236,6 +310,92 @@ public:
 		return fmin(d1,fmin(d2,d3));
 	}
 
+	Points GetPoints(int n){
+		Points pt(n);
+		pt.at(0) = start_point;
+		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
+		double B = sqrt(B2);
+		double start_t = start_curvature * B;
+		double end_t =  end_curvature * B;
+		for(int i = 1; i < n; i++){
+			double t = start_t + (end_t - start_t) / (n-1) * i;
+			pt.at(i) = posByT(t); 
+		}
+		return pt;
+	}
+
 };
+
+class Mat{
+private:
+	int row;
+	int col;
+	double* arr;
+
+public:
+	Mat(){ row = col = 0; arr = NULL; }
+	Mat(int row,int col){ this->row = row; this->col = col; arr = new double[row*col]; }
+	~Mat(){ if (arr != NULL) delete[] arr; }
+
+	double& at(unsigned int i,unsigned int j){
+		if(i >= row || j >= col){
+			throw std::runtime_error("invalid access");
+		}
+		return arr[i*col+j];
+	}
+	void zero(){
+		for(int i = 0 ; i < row*col; i++){
+			arr[i] = 0.0;
+		}
+	}
+	void eye(){
+		for(int i = 0; i < row; i++){
+			for(int j = 0; j < col; j++){
+				arr[i*col+j] = i == j ? 1.0 : 0.0;
+			}
+		}
+	}
+};
+
+Vec2 solveQuadEq(double a,double b,double c){
+	double d = b*b-4*a*c;
+	if(b > 0){
+		double x =(-b-sqrt(d))/(2*a);
+		return Vec2(x,c/a/x);
+	}
+	else{
+		double x = (-b+sqrt(d))/(2*a);
+		return Vec2(x,c/a/x);
+	}
+}
+
+Line fitLine(Points pt){
+	Vec2 mbar = pt.average();
+	double a = 0;
+	double b = 0;
+	double c = 0;
+	double d = 0;
+	// 共分散行列
+	for(int i = 0; i < pt.size(); i++){
+		Vec2 sub = pt.at(i) -mbar;
+		a += sub.x * sub.x;
+		b += sub.x * sub.y;
+		c += sub.x * sub.y;
+		d += sub.y * sub.y;
+	}
+	Vec2 x = solveQuadEq(1.0,-(a+b),a*d-b*c);
+	double l = fmax(x.x,x.y); // 最大固有値
+	Vec2 lv(b,a-l);
+	lv = lv.times(1.0/lv.norm2()); // これが傾き
+	// mbarをとおる
+	Vec2 m1 = pt.at(0) - mbar;
+	Vec2 startPos = mbar + lv.times(m1.dot(lv) / lv.norm2());
+	Vec2 mn = pt.at(pt.size()-1) - mbar;
+	Vec2 endPos = mbar + lv.times(mn.dot(lv) / lv.norm2());
+	double len = (startPos - endPos).norm2();
+	double angle = lv.angle();
+	return Line(startPos,angle,len);
+}
+
 
 #endif
