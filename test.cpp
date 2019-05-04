@@ -5,10 +5,11 @@ using namespace std;
 int main(){
 	Vec2 v1;
 	Vec2 v2(2.0,4.0);
+	Vec2 v3 = v2.rot(1.3);
  	Vec2 v = (v1 += v2);
 	v2 = v;
-	cout << v2.norm2() << endl;
-	Primitives *p = new Arc(v2,M_PI/2,M_PI/2,-1);
+	cout << v2.norm2() << " " << v2.x << " " << v3.x << endl;
+	Primitives *p = new Line(v2,M_PI/4,sqrt(2));
 	cout << p->length << " " << p->start_point.norm2() << endl;
 	double d = p->distance(Vec2(2,5));
 	cout << d << endl;

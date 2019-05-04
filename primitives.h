@@ -24,6 +24,7 @@ public:
 	double norm1(){ return fabs(x) + fabs(y); }
 	double norm2(){ return sqrt(x*x+y*y); }
 	double angle(){ return y >= 0 ? acos(x/norm2()) : 2*M_PI - acos(x/norm2()); }
+	Vec2 rot(double theta){ return Vec2(x*cos(theta) - y*sin(theta),x*sin(theta)+y*cos(theta)); }
 };
 
 class Primitives{
@@ -60,7 +61,7 @@ public:
 			return  (vv + ab).norm2();
 		}
 		else{
-			return (ab.x*vv.y - ab.y*vv.x)/sqrt(aabb);
+			return fabs((ab.x*vv.y - ab.y*vv.x))/sqrt(aabb);
 		}
 	}
 };
@@ -127,6 +128,114 @@ public:
 	Clothoid() : Primitives() { start_curvature = end_curvature = 0.0; }
 	Clothoid(Vec2 sp,double sa,double l,double sc,double ec) : Primitives(sp,sa,l) { start_curvature = sc; end_curvature = ec; }
 	~Clothoid(){}
+
+	Vec2 posByT(double t){
+		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
+		double B = sqrt(B2);
+		double start_t = start_curvature * B;
+		double end_t =  end_curvature * B;
+
+		double len = start_curvature <= end_curvature ? length : -length;
+		double start_R = 1.0 / start_curvature;
+		double end_R = 1.0 / end_curvature;
+		double start_L = end_R * len / (start_R - end_R);
+		double start_tau = start_L / (2*start_R);
+		double rota = start_tau - start_angle; 
+
+		Vec2 v = normalPosByBT(B,t) - normalPosByBT(B,start_t);
+		v = v.rot(-rota);
+		v = v + start_point;
+		return v;
+	}
+	
+	Vec2 normalPosByT(double t){
+		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
+		double B = sqrt(B2);
+		return normalPosByBT(B,t);
+	}
+
+	Vec2 normalPosByBT(double B,double t){
+		bool sgn = t >= 0;
+		t = fabs(t);
+		double t2 = t*t;
+		double t3 = t2*t;
+		double R = (0.506*t+1)/(1.79*t2+2.054*t+sqrt(2.0));
+		double A = 1.0 / (0.803*t3+1.886*t2+2.524*t+2);
+		double C = 0.5 - R*sin(0.5*M_PI*(A-t2));
+		double S = 0.5 - R*cos(0.5*M_PI*(A-t2));
+		double x = M_PI*B*C;
+		double y = M_PI*B*S;
+		return  sgn ? Vec2(x,y) : Vec2(-x,-y);
+	}
+	Vec2 derByBT(double B,double t){
+		double mtt2 = M_PI/2*t*t;
+		double mb = M_PI*B;
+		return Vec2(mb*cos(mtt2),mb*sin(mtt2));
+	}
+	Vec2 der2ByBT(double B,double t){
+		double ptt2 = M_PI/2*t*t;
+		double ppbt = M_PI*M_PI*B*t;
+		return Vec2(-ppbt*sin(ptt2),ppbt*cos(ptt2));
+	}
+
+	double f(Vec2 p,double B,double t){
+		Vec2 v = normalPosByBT(B,t);
+		return (v-p).norm2();
+	}
+	double f1(Vec2 p, double B, double t){
+		Vec2 v = normalPosByBT(B,t);
+		Vec2 d = derByBT(B,t);
+		return -2*(p.x-v.x)*d.x -2*(p.y-v.y)*d.y;
+	}
+	double f2(Vec2 p,double B,double t){
+		Vec2 v = normalPosByBT(B,t);
+		Vec2 d2 = der2ByBT(B,t);
+		return -2*(p.x-v.x)*d2.x - 2*(p.y-v.y)*d2.y + 2*M_PI*M_PI*B*B;
+	}
+
+	double dist_newton(Vec2 p,double B,double min_t,double max_t,double t){
+		double val = f1(p,B,t);
+		int cntr = 0;
+		while(fabs(val) > 1e-8 && cntr < 20){
+			t -= val / f2(p,B,t);
+			val = f1(p,B,t);
+			cntr++;
+		}
+		if(t < min_t){
+			return sqrt(f(p,B,min_t));
+		}
+		if(t > max_t){
+			return sqrt(f(p,B,max_t));
+		}
+		return sqrt(f(p,B,t));
+	}
+
+	double distance(Vec2 v) override{
+		//　パラメータ計算
+		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
+		double B = sqrt(B2);
+		double start_t = start_curvature * B;
+		double end_t =  end_curvature * B;
+
+		double len = start_curvature <= end_curvature ? length : -length;
+		double start_R = 1.0 / start_curvature;
+		double end_R = 1.0 / end_curvature;
+		double start_L = end_R * len / (start_R - end_R);
+		double start_tau = start_L / (2*start_R);
+		double rota = start_tau - start_angle; // 正規形にするために回転させる角度
+		// 正規形へ座標変換
+		v = v - start_point;
+		v = v.rot(rota);
+		v = v + normalPosByBT(B,start_t);
+		// 距離をiterativeに計算
+		double min_t = fmin(start_t,end_t);
+		double max_t = fmax(start_t,end_t);
+		double d1 = dist_newton(v,B,min_t,max_t,min_t);
+		double d2 = dist_newton(v,B,min_t,max_t,max_t);
+		double d3 = dist_newton(v,B,min_t,max_t,(min_t+max_t)/2);
+		return fmin(d1,fmin(d2,d3));
+	}
+
 };
 
 #endif
