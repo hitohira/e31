@@ -262,7 +262,8 @@ public:
 
 	double f(Vec2 p,double B,double t){
 		Vec2 v = normalPosByBT(B,t);
-		return (v-p).norm2();
+		Vec2 tmp = v-p;
+		return tmp.x*tmp.x + tmp.y*tmp.y;
 	}
 	double f1(Vec2 p, double B, double t){
 		Vec2 v = normalPosByBT(B,t);
@@ -278,7 +279,7 @@ public:
 	double dist_newton(Vec2 p,double B,double min_t,double max_t,double t){
 		double val = f1(p,B,t);
 		int cntr = 0;
-		while(fabs(val) > 1e-8 && cntr < 20){
+		while(fabs(val) > 1e-4 && cntr < 20){
 			t -= val / f2(p,B,t);
 			val = f1(p,B,t);
 			cntr++;
@@ -374,22 +375,93 @@ Line fitLine(Points &pt){
 	return Line(startPos,angle,len);
 }
 
-void derivArc(Arc& arc,Points& pt,Eigen::MatrixXd& F){
-	F = Eigen::MatrixXd::Zero(pt.size(),5);
-	for(int i = 0; i < F.rows(); i++){
-			double dist = arc.distance(pt.at(i));
-			// TODO 差分法
-		for(int j = 0; j < F.cols(); j++){
-			F(i,j) = dist;
-		}
+// 論文そのまま実装すると長さめっちゃ長くなることがあるから length - |m_0 - m_n|も制約に追加
+void derivArc(Arc& arc,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::MatrixXd& tdF){
+	int n = pt.size();
+	F = Eigen::VectorXd::Zero(n);
+	dF = Eigen::MatrixXd::Zero(n,5);
+	tdF = Eigen::MatrixXd::Zero(5,n);
+
+	double dx = 0.00001;
+	double dy = 0.00001;
+	double da = 0.00001;
+	double dl = 0.00001;
+	double dc = 0.00001;
+	Arc arc_x(Vec2(arc.start_point.x+dx,arc.start_point.y),arc.start_angle,arc.length,arc.start_curvature);
+	Arc arc_y(Vec2(arc.start_point.x,arc.start_point.y+dy),arc.start_angle,arc.length,arc.start_curvature);
+	Arc arc_a(Vec2(arc.start_point.x,arc.start_point.y),arc.start_angle+da,arc.length,arc.start_curvature);
+	Arc arc_l(Vec2(arc.start_point.x,arc.start_point.y),arc.start_angle,arc.length+dl,arc.start_curvature);
+	Arc arc_c(Vec2(arc.start_point.x,arc.start_point.y),arc.start_angle,arc.length,arc.start_curvature+dc);
+	for(int i = 0; i < n; i++){
+		double dist = arc.distance(pt.at(i));
+		F(i) = dist;
+		// 差分法
+		// point.x
+		double dist_x = arc_x.distance(pt.at(i));
+		dF(i,0) = (dist_x - dist) / dx;
+		tdF(0,i) = (dist_x - dist) / dx;
+		// point.y
+		double dist_y = arc_y.distance(pt.at(i));
+		dF(i,1) = (dist_y - dist) / dy;
+		tdF(1,i) = (dist_y - dist) / dy;
+		// angle
+		double dist_a = arc_a.distance(pt.at(i));
+		dF(i,2) = (dist_a - dist) / da;
+		tdF(2,i) = (dist_a - dist) / da;
+		// length
+		double dist_l = arc_l.distance(pt.at(i));
+		dF(i,3) = (dist_l - dist) / dl;
+		tdF(3,i) = (dist_l - dist) / dl;
+		// curvature
+		double dist_c = arc_c.distance(pt.at(i));
+		dF(i,4) = (dist_c - dist) / dc;
+		tdF(4,i) = (dist_c - dist) / dc;
 	}
 }
 
+Arc initArc(Points & pt){
+	Vec2 dir = pt.at(pt.size()-1) - pt.at(0);
+	Vec2 sp = pt.at(0);
+	double r = dir.norm2();
+	double len = r * (M_PI / 3.0);
+	double angle = dir.rot(-M_PI/6.0).angle();
+	return Arc(sp,angle,len,1.0/r);
+}
+
 Arc fitArc(Points &pt){
-	Arc arc(Vec2(1.0,1.0),1.0,1.0,1.0); // 適切な初期値
-	Eigen::MatrixXd F; // 要素数,パラメタ数
-	derivArc(arc,pt,F);
-	return Arc(Vec2(1.0,1.0),1.0,1.0,1.0);
+	Arc arc = initArc(pt); // 適切な初期値
+	Eigen::VectorXd F;
+	Eigen::MatrixXd dF; // 要素数,パラメタ数
+	Eigen::MatrixXd tdF; // 要素数,パラメタ数
+	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.0001; // 時間あればMarquardt-Levenberg method
+	for(int i = 0; i < 1; i++){
+		derivArc(arc,pt,F,dF,tdF);
+		Eigen::MatrixXd A = tdF * dF + lambdaI;
+		Eigen::VectorXd b = -tdF * F;
+		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
+		Eigen::VectorXd dx = lu.solve(b);
+		arc = Arc(arc.start_point + Vec2(dx(0),dx(1)),arc.start_angle+dx(2),arc.length+dx(3),arc.start_curvature+dx(4));
+		if(dx.norm() < 1e-4){
+			printf("%d\n",i);
+			break;
+		}
+	}
+	// 最後に適切にクランプする必要あり
+	double r = fabs(1.0 / arc.start_curvature);
+	Vec2 center = arc.centerPos();
+	Vec2 stv = pt.at(0) - center;
+	Vec2 edv = pt.at(pt.size()-1) - center;
+	Vec2 startPos = center + stv.times(r/stv.norm2());
+	Vec2 endPos = center + edv.times(r/edv.norm2());
+	Vec2 vtc = center - startPos;
+	double angle = arc.start_curvature >= 0.0 ? vtc.rot(-M_PI/2).angle() : vtc.rot(M_PI/2).angle();
+	double sgn = arc.start_curvature >= 0.0 ? 1.0 : -1.0;
+	double cost = stv.dot(edv) / (stv.norm2() * edv.norm2());
+	double sint = sgn * stv.cross(edv) / (stv.norm2() * edv.norm2());
+	double theta = sint >= 0 ? acos(cost) : 2*M_PI - acos(cost); // 中心角
+	double len = r * theta;
+	std::cerr << endPos.x << " " << endPos.y << " " << sint << " " << cost << std::endl;
+	return Arc(startPos,angle,len,arc.start_curvature);
 }
 
 #endif
