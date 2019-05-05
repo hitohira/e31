@@ -2,9 +2,11 @@
 #define PRIMITIVES_H
 
 #include <math.h>
+#include <stdlib.h>
 #include <exception>
 #include <stdexcept>
-
+#include "Eigen/Core"
+#include "Eigen/LU"
 
 class Vec2{
 public:
@@ -38,8 +40,13 @@ private:
 
 public:
 	Points(){ sz = 0; idx = NULL; }
-	Points(int n){ sz = n; idx = new Vec2[n]; }
-	~Points(){ if(idx != NULL) delete[] idx; }
+	Points(int n){ sz = n; idx = (Vec2*)malloc(sizeof(Vec2)*n); }
+	~Points(){ 
+		if(idx != NULL){ 
+			free(idx);
+			idx = NULL; 
+		} 
+	}
 	
 	Vec2& at(unsigned int i){
 		if(i >= sz){
@@ -54,16 +61,17 @@ public:
 	Points &operator=(Points &p)
 	{ 
 		if(idx != NULL){
-			delete[] idx;
+			free(idx);
+			idx = NULL;
 		}
 		this->sz = p.sz;
-		this->idx = new Vec2[p.sz];
+		this->idx = (Vec2*)malloc(sizeof(Vec2)*p.sz);
 		for(int i = 0; i < this->sz; i++){
 			this->at(i) = p.at(i);
 		}
 		return *this;
 	}
-	
+
 	Vec2 average(){
 		Vec2 sum;
 		for(int i = 0; i < sz; i++){
@@ -82,7 +90,7 @@ public:
 	double start_angle;
 	double length;
 
-	Primitives(){ length = 0.0; }
+	Primitives(){ start_point = Vec2(0,0);start_angle = 0.0;length = 0.0; }
 	Primitives(Vec2 sp,double sa,double l){
 		start_point = sp; start_angle = sa; length = l;
 	}
@@ -326,37 +334,6 @@ public:
 
 };
 
-class Mat{
-private:
-	int row;
-	int col;
-	double* arr;
-
-public:
-	Mat(){ row = col = 0; arr = NULL; }
-	Mat(int row,int col){ this->row = row; this->col = col; arr = new double[row*col]; }
-	~Mat(){ if (arr != NULL) delete[] arr; }
-
-	double& at(unsigned int i,unsigned int j){
-		if(i >= row || j >= col){
-			throw std::runtime_error("invalid access");
-		}
-		return arr[i*col+j];
-	}
-	void zero(){
-		for(int i = 0 ; i < row*col; i++){
-			arr[i] = 0.0;
-		}
-	}
-	void eye(){
-		for(int i = 0; i < row; i++){
-			for(int j = 0; j < col; j++){
-				arr[i*col+j] = i == j ? 1.0 : 0.0;
-			}
-		}
-	}
-};
-
 Vec2 solveQuadEq(double a,double b,double c){
 	double d = b*b-4*a*c;
 	if(b > 0){
@@ -369,7 +346,7 @@ Vec2 solveQuadEq(double a,double b,double c){
 	}
 }
 
-Line fitLine(Points pt){
+Line fitLine(Points &pt){
 	Vec2 mbar = pt.average();
 	double a = 0;
 	double b = 0;
@@ -385,17 +362,34 @@ Line fitLine(Points pt){
 	}
 	Vec2 x = solveQuadEq(1.0,-(a+b),a*d-b*c);
 	double l = fmax(x.x,x.y); // 最大固有値
-	Vec2 lv(b,a-l);
+	Vec2 lv(b,-a+l);
 	lv = lv.times(1.0/lv.norm2()); // これが傾き
 	// mbarをとおる
 	Vec2 m1 = pt.at(0) - mbar;
-	Vec2 startPos = mbar + lv.times(m1.dot(lv) / lv.norm2());
+	Vec2 startPos = mbar + lv.times(m1.dot(lv));
 	Vec2 mn = pt.at(pt.size()-1) - mbar;
-	Vec2 endPos = mbar + lv.times(mn.dot(lv) / lv.norm2());
+	Vec2 endPos = mbar + lv.times(mn.dot(lv));
 	double len = (startPos - endPos).norm2();
 	double angle = lv.angle();
 	return Line(startPos,angle,len);
 }
 
+void derivArc(Arc& arc,Points& pt,Eigen::MatrixXd& F){
+	F = Eigen::MatrixXd::Zero(pt.size(),5);
+	for(int i = 0; i < F.rows(); i++){
+			double dist = arc.distance(pt.at(i));
+			// TODO 差分法
+		for(int j = 0; j < F.cols(); j++){
+			F(i,j) = dist;
+		}
+	}
+}
+
+Arc fitArc(Points &pt){
+	Arc arc(Vec2(1.0,1.0),1.0,1.0,1.0); // 適切な初期値
+	Eigen::MatrixXd F; // 要素数,パラメタ数
+	derivArc(arc,pt,F);
+	return Arc(Vec2(1.0,1.0),1.0,1.0,1.0);
+}
 
 #endif
