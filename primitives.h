@@ -476,7 +476,6 @@ Arc fitArc(Points &pt){
 		Eigen::VectorXd dx = lu.solve(b);
 		arc = Arc(arc.start_point + Vec2(dx(0),dx(1)),arc.start_angle+dx(2),arc.length+dx(3),arc.start_curvature+dx(4));
 		if(dx.norm() < 1e-4){
-			printf("%d\n",i);
 			break;
 		}
 	}
@@ -497,5 +496,82 @@ Arc fitArc(Points &pt){
 	std::cerr << endPos.x << " " << endPos.y << " " << sint << " " << cost << std::endl;
 	return Arc(startPos,angle,len,arc.start_curvature);
 }
+
+Clothoid initClothoid(Points& pt){
+	// TODO
+	return Clothoid();
+}
+
+void derivClothoid(Clothoid& cl,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::MatrixXd& tdF){
+	int n = pt.size();
+	F = Eigen::VectorXd::Zero(n);
+	dF = Eigen::MatrixXd::Zero(n,6);
+	tdF = Eigen::MatrixXd::Zero(6,n);
+
+	double dx = 0.00001;
+	double dy = 0.00001;
+	double da = 0.00001;
+	double dl = 0.00001;
+	double dsc = 0.00001;
+	double dec = 0.00001;
+	Clothoid c_x(Vec2(cl.start_point.x+dx,cl.start_point.y),cl.start_angle,cl.length,cl.start_curvature,cl.end_curvature);
+	Clothoid c_y(Vec2(cl.start_point.x,cl.start_point.y+dy),cl.start_angle,cl.length,cl.start_curvature,cl.end_curvature);
+	Clothoid c_a(cl.start_point,cl.start_angle+da,cl.length,cl.start_curvature,cl.end_curvature);
+	Clothoid c_l(cl.start_point,cl.start_angle,cl.length+dl,cl.start_curvature,cl.end_curvature);
+	Clothoid c_sc(cl.start_point,cl.start_angle,cl.length,cl.start_curvature+dsc,cl.end_curvature);
+	Clothoid c_ec(cl.start_point,cl.start_angle,cl.length,cl.start_curvature,cl.end_curvature+dec);
+	for(int i = 0; i < n; i++){
+		double dist = cl.distance(pt.at(i));
+		F(i) = dist;
+		// 差分法
+		// point.x
+		double dist_x = c_x.distance(pt.at(i));
+		dF(i,0) = (dist_x - dist) / dx;
+		tdF(0,i) = (dist_x - dist) / dx;
+		// point.y
+		double dist_y = c_y.distance(pt.at(i));
+		dF(i,1) = (dist_y - dist) / dy;
+		tdF(1,i) = (dist_y - dist) / dy;
+		// angle
+		double dist_a = c_a.distance(pt.at(i));
+		dF(i,2) = (dist_a - dist) / da;
+		tdF(2,i) = (dist_a - dist) / da;
+		// length
+		double dist_l = c_l.distance(pt.at(i));
+		dF(i,3) = (dist_l - dist) / dl;
+		tdF(3,i) = (dist_l - dist) / dl;
+		// curvature
+		double dist_sc = c_sc.distance(pt.at(i));
+		dF(i,4) = (dist_sc - dist) / dsc;
+		tdF(4,i) = (dist_sc - dist) / dsc;
+		// curvature
+		double dist_ec = c_ec.distance(pt.at(i));
+		dF(i,5) = (dist_ec - dist) / dec;
+		tdF(5,i) = (dist_ec - dist) / dec;
+	}
+}
+
+Clothoid fitClothoid(Points& pt){
+	Clothoid cl = initClothoid(pt);
+	Eigen::VectorXd F;
+	Eigen::MatrixXd dF; // 要素数,パラメタ数
+	Eigen::MatrixXd tdF; // 要素数,パラメタ数
+	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(6,6) * 0.000001; // 時間あればMarquardt-Levenberg method
+	for(int i = 0; i < 10; i++){
+		derivClothoid(cl,pt,F,dF,tdF);
+		Eigen::MatrixXd A = tdF * dF + lambdaI;
+		Eigen::VectorXd b = -tdF * F;
+		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
+		Eigen::VectorXd dx = lu.solve(b);
+		cl = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
+		              cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
+		if(dx.norm() < 1e-4){
+			break;
+		}
+	}
+	// TODO クランプ
+	return cl;
+}
+
 
 #endif
