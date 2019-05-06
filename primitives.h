@@ -419,13 +419,47 @@ void derivArc(Arc& arc,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::
 	}
 }
 
+Vec2 arcCenterBy3points(Vec2 v1,Vec2 v2,Vec2 v3){
+	Eigen::Matrix2d A;
+	A << 2.0 * (v1.x-v2.x) , 2.0 * (v1.y-v2.y) ,
+	     2.0 * (v1.x-v3.x) , 2.0 * (v1.y-v3.y);
+	Eigen::Vector2d b;
+	b << (v1.x*v1.x + v1.y*v1.y) - (v2.x*v2.x + v2.y*v2.y), 
+	     (v1.x*v1.x + v1.y*v1.y) - (v3.x*v3.x + v3.y*v3.y);
+	Eigen::PartialPivLU<Eigen::Matrix2d> lu(A);
+	Eigen::Vector2d x = lu.solve(b);
+	return Vec2(x(0),x(1));	    
+}
+
 Arc initArc(Points & pt){
-	Vec2 dir = pt.at(pt.size()-1) - pt.at(0);
-	Vec2 sp = pt.at(0);
-	double r = dir.norm2();
-	double len = r * (M_PI / 3.0);
-	double angle = dir.rot(-M_PI/6.0).angle();
-	return Arc(sp,angle,len,1.0/r);
+	int n = pt.size();
+	if(n < 3){
+		Vec2 dir = pt.at(n-1) - pt.at(0);
+		Vec2 sp = pt.at(0);
+		double r = dir.norm2();
+		double len = r * (M_PI / 3.0);
+		double angle = dir.rot(-M_PI/6.0).angle();
+		return Arc(sp,angle,len,1.0/r);
+	}
+	else{
+		Vec2 v1 = pt.at(0);
+		Vec2 v2 = pt.at(n/2);
+		Vec2 v3 = pt.at(n-1);
+		Vec2 center = arcCenterBy3points(v1,v2,v3);
+		Vec2 vtc = center - v1;
+		Vec2 v31 = v3-v1;
+		Vec2 v21 = v2-v1;
+		double sgn = v21.cross(v31) >= 0 ? 1.0 : -1.0; // 曲率の符号
+		double r = vtc.norm2();
+		double angle = sgn >= 0 ? vtc.rot(-M_PI/2).angle() : vtc.rot(M_PI/2).angle();
+		Vec2 stv = v1 - center;
+		Vec2 edv = v3 - center;
+		double cost = stv.dot(edv) / (stv.norm2() * edv.norm2());
+		double sint = sgn * stv.cross(edv) / (stv.norm2() * edv.norm2());
+		double theta = sint >= 0 ? acos(cost) : 2*M_PI - acos(cost); // 中心角
+		double len = r * theta;
+		return Arc(v1,angle,len,sgn/r);
+	}
 }
 
 Arc fitArc(Points &pt){
@@ -433,8 +467,8 @@ Arc fitArc(Points &pt){
 	Eigen::VectorXd F;
 	Eigen::MatrixXd dF; // 要素数,パラメタ数
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
-	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.0001; // 時間あればMarquardt-Levenberg method
-	for(int i = 0; i < 1; i++){
+	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.000001; // 時間あればMarquardt-Levenberg method
+	for(int i = 0; i < 5; i++){
 		derivArc(arc,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
