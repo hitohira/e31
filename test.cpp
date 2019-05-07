@@ -4,7 +4,7 @@ using namespace std;
 
 int main(){
 	int n = 40;
-	Clothoid c(Vec2(3.0,2.0),0.78,1,-2.0,-8.0);
+	Clothoid c(Vec2(3.0,2.0),0.78,1,-8.0,2.0);
 	Points pt = c.GetPoints(n);
 	Arc ln = fitArc(pt);
 	Points pt2 = ln.GetPoints(n);
