@@ -54,11 +54,17 @@ public:
 		}
 		return idx[i];
 	}
+	Vec2 at2(unsigned int i) const {
+		if(i >= sz){
+			throw std::runtime_error("invalid access");
+		}
+		return idx[i];
+	}
 	int size(){
 		return sz;
 	}
 
-	Points &operator=(Points &p)
+	Points &operator=(const Points &p)
 	{ 
 		if(idx != NULL){
 			free(idx);
@@ -67,7 +73,7 @@ public:
 		this->sz = p.sz;
 		this->idx = (Vec2*)malloc(sizeof(Vec2)*p.sz);
 		for(int i = 0; i < this->sz; i++){
-			this->at(i) = p.at(i);
+			at(i) = p.at2(i);
 		}
 		return *this;
 	}
@@ -98,7 +104,7 @@ public:
 
 	virtual double distance(Vec2 v){ return 0.0; };
 
-	virtual Points GetPoints(int n){ return Points();};
+	virtual void GetPoints(int n,Points& pt){ pt = Points();};
 };
 
 class Line : public Primitives{
@@ -123,14 +129,13 @@ public:
 		}
 	}
 	
-	Points GetPoints(int n) override{
-		Points pt(n);
+	void GetPoints(int n,Points& pt) override{
+		pt = Points(n);
 		pt.at(0) = start_point;
 		for(int i = 1; i < n; i++){
 			double l = length / (n-1) * i;
 			pt.at(i) = start_point + Vec2(l*cos(start_angle),l*sin(start_angle));
 		}
-		return pt;
 	}
 };
 
@@ -156,6 +161,10 @@ public:
 	}
 
 	double distance(Vec2 v) override{
+		if(fabs(radius()) < 1e-10){
+			Line ln(start_point,start_angle,length);
+			return ln.distance(v);
+		}
 		double r = radius();
 		Vec2 vc = vecToCenter();
 		Vec2 vcinv = vc.times(-1);
@@ -186,8 +195,12 @@ public:
 		}
 	}
 
-	Points GetPoints(int n) override{
-		Points pt(n);
+	void GetPoints(int n, Points& pt) override{
+		if(fabs(radius()) < 1e-10){
+			Line ln(start_point,start_angle,length);
+			return ln.GetPoints(n,pt);
+		}
+		pt = Points(n);
 		pt.at(0) = start_point;
 		double r = radius();
 		Vec2 vc = vecToCenter();
@@ -198,7 +211,6 @@ public:
 			double a = arot / (n-1) * i;
 			pt.at(i) = center + vcinv.rot(a);	
 		}
-		return pt;
 	}
 };
 
@@ -294,6 +306,10 @@ public:
 	}
 
 	double distance(Vec2 v) override{
+		if(fabs(end_curvature - start_curvature) < 1e-10){
+			Arc arc(start_point,start_angle,length,start_curvature);
+			return arc.distance(v);
+		}
 		//　パラメータ計算
 		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
 		double B = sqrt(B2);
@@ -319,8 +335,12 @@ public:
 		return fmin(d1,fmin(d2,d3));
 	}
 
-	Points GetPoints(int n){
-		Points pt(n);
+	void GetPoints(int n,Points& pt){
+		if(fabs(end_curvature - start_curvature) < 1e-10){
+			Arc arc(start_point,start_angle,length,start_curvature);
+			return arc.GetPoints(n,pt);
+		}
+		pt = Points(n);
 		pt.at(0) = start_point;
 		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
 		double B = sqrt(B2);
@@ -330,7 +350,6 @@ public:
 			double t = start_t + (end_t - start_t) / (n-1) * i;
 			pt.at(i) = posByT(t); 
 		}
-		return pt;
 	}
 
 };
@@ -499,7 +518,8 @@ Arc fitArc(Points &pt){
 
 Clothoid initClothoid(Points& pt){
 	// TODO
-	return Clothoid();
+	Arc arc = initArc(pt);
+	return Clothoid(arc.start_point,arc.start_angle,arc.length,arc.start_curvature,arc.start_curvature);
 }
 
 void derivClothoid(Clothoid& cl,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::MatrixXd& tdF){
@@ -557,12 +577,12 @@ Clothoid fitClothoid(Points& pt){
 	Eigen::MatrixXd dF; // 要素数,パラメタ数
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(6,6) * 0.000001; // 時間あればMarquardt-Levenberg method
-	for(int i = 0; i < 10; i++){
+	for(int i = 0; i < 5; i++){
 		derivClothoid(cl,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
 		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
-		Eigen::VectorXd dx = lu.solve(b);
+		Eigen::VectorXd dx = lu.solve(b) * 0.5;
 		cl = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
 		              cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
 		if(dx.norm() < 1e-4){
