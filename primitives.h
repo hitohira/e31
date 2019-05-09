@@ -512,7 +512,7 @@ Arc fitArc(Points &pt){
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.000001; // 時間あればMarquardt-Levenberg method
 	double score = arc.GetScore(pt);
 	std::cerr << score << std::endl;
-	for(int i = 0; i < 100; i++){
+	for(int i = 0; i < 20; i++){
 		derivArc(arc,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
@@ -553,9 +553,8 @@ Arc fitArc(Points &pt){
 }
 
 Clothoid initClothoid(Points& pt){
-	// TODO
 	Arc arc = initArc(pt);
-	return Clothoid(arc.start_point,arc.start_angle,arc.length,arc.start_curvature,arc.start_curvature+2);
+	return Clothoid(arc.start_point-Vec2(0.05*cos(arc.start_angle),0.05*cos(arc.start_angle)),arc.start_angle,arc.length+1,arc.start_curvature,arc.start_curvature*0.999999);
 }
 
 void derivClothoid(Clothoid& cl,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::MatrixXd& tdF){
@@ -564,12 +563,12 @@ void derivClothoid(Clothoid& cl,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& d
 	dF = Eigen::MatrixXd::Zero(n,6);
 	tdF = Eigen::MatrixXd::Zero(6,n);
 
-	double dx = 0.000001;
-	double dy = 0.000001;
-	double da = 0.000001;
-	double dl = 0.000001;
-	double dsc = 0.000001;
-	double dec = 0.000001;
+	double dx = 0.0001;
+	double dy = 0.0001;
+	double da = 0.0001;
+	double dl = 0.0001;
+	double dsc = 0.0001;
+	double dec = 0.0001;
 	Clothoid c_x(Vec2(cl.start_point.x+dx,cl.start_point.y),cl.start_angle,cl.length,cl.start_curvature,cl.end_curvature);
 	Clothoid c_y(Vec2(cl.start_point.x,cl.start_point.y+dy),cl.start_angle,cl.length,cl.start_curvature,cl.end_curvature);
 	Clothoid c_a(cl.start_point,cl.start_angle+da,cl.length,cl.start_curvature,cl.end_curvature);
@@ -614,7 +613,7 @@ Clothoid fitClothoid(Points& pt){
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(6,6) * 0.000001; // 時間あればMarquardt-Levenberg method
 	double score = cl.GetScore(pt);
-	for(int i = 0; i < 100; i++){
+	for(int i = 0; i < 20; i++){
 		derivClothoid(cl,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
@@ -627,7 +626,6 @@ Clothoid fitClothoid(Points& pt){
 		              cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
 		int cntr = 0;
 		while(score < next.GetScore(pt) && cntr < 10){
-			std::cerr << next.GetScore(pt) << "   L   "  << score << std::endl;
 			dx *= 0.8;
 			next = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
 		  		cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
@@ -640,6 +638,8 @@ Clothoid fitClothoid(Points& pt){
 		std::cerr << score << std::endl;
 	}
 	// TODO クランプ
+	
+
 	return cl;
 }
 
