@@ -105,6 +105,8 @@ public:
 	virtual double distance(Vec2 v){ return 0.0; };
 
 	virtual void GetPoints(int n,Points& pt){ pt = Points();};
+
+	virtual double GetScore(Points& pt) { return 0.0; }
 };
 
 class Line : public Primitives{
@@ -136,6 +138,14 @@ public:
 			double l = length / (n-1) * i;
 			pt.at(i) = start_point + Vec2(l*cos(start_angle),l*sin(start_angle));
 		}
+	}
+
+	double GetScore(Points& pt){
+		double sm = 0.0;
+		for(int i = 0; i < pt.size(); i++){
+			sm += distance(pt.at(i));
+		}
+		return sm;
 	}
 };
 
@@ -211,6 +221,13 @@ public:
 			double a = arot / (n-1) * i;
 			pt.at(i) = center + vcinv.rot(a);	
 		}
+	}
+	double GetScore(Points& pt){
+		double sm = 0.0;
+		for(int i = 0; i < pt.size(); i++){
+			sm += distance(pt.at(i));
+		}
+		return sm;
 	}
 };
 
@@ -351,6 +368,13 @@ public:
 			pt.at(i) = posByT(t); 
 		}
 	}
+	double GetScore(Points& pt){
+		double sm = 0.0;
+		for(int i = 0; i < pt.size(); i++){
+			sm += distance(pt.at(i));
+		}
+		return sm;
+	}
 
 };
 
@@ -394,7 +418,6 @@ Line fitLine(Points &pt){
 	return Line(startPos,angle,len);
 }
 
-// 論文そのまま実装すると長さめっちゃ長くなることがあるから length - |m_0 - m_n|も制約に追加
 void derivArc(Arc& arc,Points& pt,Eigen::VectorXd& F,Eigen::MatrixXd& dF,Eigen::MatrixXd& tdF){
 	int n = pt.size();
 	F = Eigen::VectorXd::Zero(n);
@@ -487,16 +510,30 @@ Arc fitArc(Points &pt){
 	Eigen::MatrixXd dF; // 要素数,パラメタ数
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.000001; // 時間あればMarquardt-Levenberg method
+	double score = arc.GetScore(pt);
+	std::cerr << score << std::endl;
 	for(int i = 0; i < 5; i++){
 		derivArc(arc,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
 		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
 		Eigen::VectorXd dx = lu.solve(b);
-		arc = Arc(arc.start_point + Vec2(dx(0),dx(1)),arc.start_angle+dx(2),arc.length+dx(3),arc.start_curvature+dx(4));
 		if(dx.norm() < 1e-4){
 			break;
 		}
+		Arc next(arc.start_point + Vec2(dx(0),dx(1)),arc.start_angle+dx(2),arc.length+dx(3),arc.start_curvature+dx(4));
+		int cntr = 0;
+		while(score < next.GetScore(pt) && cntr < 10){
+			dx *= 0.8;
+			next = Arc(arc.start_point + Vec2(dx(0),dx(1)),arc.start_angle+dx(2),arc.length+dx(3),arc.start_curvature+dx(4));
+			cntr++;
+		}
+		if(cntr == 10){
+			break;
+		}
+		score = next.GetScore(pt);
+		arc = next;
+		std::cerr << score << std::endl;
 	}
 	// 最後に適切にクランプする必要あり
 	double r = fabs(1.0 / arc.start_curvature);
@@ -512,7 +549,6 @@ Arc fitArc(Points &pt){
 	double sint = sgn * stv.cross(edv) / (stv.norm2() * edv.norm2());
 	double theta = sint >= 0 ? acos(cost) : 2*M_PI - acos(cost); // 中心角
 	double len = r * theta;
-	std::cerr << endPos.x << " " << endPos.y << " " << sint << " " << cost << std::endl;
 	return Arc(startPos,angle,len,arc.start_curvature);
 }
 
@@ -577,17 +613,30 @@ Clothoid fitClothoid(Points& pt){
 	Eigen::MatrixXd dF; // 要素数,パラメタ数
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(6,6) * 0.000001; // 時間あればMarquardt-Levenberg method
+	double score = cl.GetScore(pt);
 	for(int i = 0; i < 5; i++){
 		derivClothoid(cl,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
 		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
-		Eigen::VectorXd dx = lu.solve(b) * 0.5;
-		cl = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
-		              cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
+		Eigen::VectorXd dx = lu.solve(b);
 		if(dx.norm() < 1e-4){
 			break;
 		}
+		Clothoid next = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
+		              cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
+		int cntr = 0;
+		while(score < next.GetScore(pt) && cntr < 10){
+			dx *= 0.8;
+			next = Clothoid(cl.start_point + Vec2(dx(0),dx(1)),cl.start_angle+dx(2),
+		  		cl.length+dx(3),cl.start_curvature+dx(4),cl.end_curvature+dx(5));
+		}
+		if(cntr == 10){
+			break;
+		}
+		score = next.GetScore(pt);
+		cl = next;
+		std::cerr << score << std::endl;
 	}
 	// TODO クランプ
 	return cl;
