@@ -2,9 +2,11 @@
 #define PRIMITIVES_H
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <exception>
 #include <stdexcept>
+#include <vector>
 #include "Eigen/Core"
 #include "Eigen/LU"
 
@@ -37,9 +39,10 @@ class Points{
 private:
 	int sz;
 	Vec2 * idx;
+	std::vector<int> corner;
 
 public:
-	Points(){ sz = 0; idx = NULL; }
+	Points(){ sz = 0; idx = NULL; corner = std::vector<int>(); }
 	Points(int n){ sz = n; idx = (Vec2*)malloc(sizeof(Vec2)*n); }
 	~Points(){ 
 		if(idx != NULL){ 
@@ -86,6 +89,59 @@ public:
 		return sum.times(1.0/sz);
 	}
 	
+	int readPoints(FILE* fp){
+		double d1,d2;
+		std::vector<double> v1 = std::vector<double>();
+		std::vector<double> v2 = std::vector<double>();
+		while(fscanf(fp,"%lf%lf",&d1,&d2) == 2){
+			v1.push_back(d1);
+			v2.push_back(d2);
+		}
+		if(idx != NULL){
+			free(idx);
+		}
+		sz = v1.size();
+		idx = (Vec2*)malloc(sizeof(Vec2)*sz);
+		for(int i = 0; i < sz; i++){
+			idx[i] = Vec2(v1[i],v2[i]);
+		}
+		return sz;
+	}
+	int readCornerIdx(FILE* fp){
+		int p;
+		if(!corner.empty()){
+			std::vector<int>().swap(corner);
+		}
+		while(fscanf(fp,"%d",&p) == 1){
+			corner.push_back(p);
+		}
+		return corner.size();
+	}
+
+	Points rearrenge(){
+		Points pt(sz+1);
+		if(corner.empty()){
+			for(int i = 0; i < sz; i++){
+				pt.at(i) = at(i);
+				pt.at(sz) = at(0);
+			}
+		}
+		else{
+			int top = corner[0];
+			for(int i = top; i < sz; i++){
+				pt.at(i-top) = at(i);
+			}
+			for(int i = 0; i < top; i++){
+				pt.at(i+sz-top) = at(i);
+			}
+			pt.at(sz) = at(top);
+			for(int i = 0; i < corner.size(); i++){
+				pt.corner.push_back(corner[i]-top);
+			}
+			pt.corner.push_back(sz);
+		}
+		return pt;
+	}
 
 };
 
@@ -102,11 +158,13 @@ public:
 	}
 	virtual ~Primitives(){}
 
-	virtual double distance(Vec2 v){ return 0.0; };
+	virtual double distance(Vec2 v){ return 0.0; }
 
-	virtual void GetPoints(int n,Points& pt){ pt = Points();};
+	virtual void GetPoints(int n,Points& pt){ pt = Points();}
 
 	virtual double GetScore(Points& pt) { return 0.0; }
+
+	virtual double GetEndAngle(){ return 0.0 ;}
 };
 
 class Line : public Primitives{
@@ -140,12 +198,15 @@ public:
 		}
 	}
 
-	double GetScore(Points& pt){
+	double GetScore(Points& pt) override{
 		double sm = 0.0;
 		for(int i = 0; i < pt.size(); i++){
 			sm += distance(pt.at(i));
 		}
 		return sm;
+	}
+	double GetEndAngle() override{
+		return start_angle;
 	}
 };
 
@@ -222,12 +283,30 @@ public:
 			pt.at(i) = center + vcinv.rot(a);	
 		}
 	}
-	double GetScore(Points& pt){
+	double GetScore(Points& pt) override {
 		double sm = 0.0;
 		for(int i = 0; i < pt.size(); i++){
 			sm += distance(pt.at(i));
 		}
 		return sm;
+	}
+
+	double GetEndAngle() override{
+		double theta = length / radius();
+		double angle;
+		if(start_curvature >= 0.0){
+			angle = start_angle + theta;
+		}
+		else{
+			angle = start_angle - theta;
+		}
+		if(angle > 2*M_PI){
+			angle -= 2*M_PI;
+		}
+		else if(angle < 0.0){
+			angle += 2*M_PI;
+		}
+		return angle;
 	}
 };
 
@@ -352,7 +431,7 @@ public:
 		return fmin(d1,fmin(d2,d3));
 	}
 
-	void GetPoints(int n,Points& pt){
+	void GetPoints(int n,Points& pt)override{
 		if(fabs(end_curvature - start_curvature) < 1e-10){
 			Arc arc(start_point,start_angle,length,start_curvature);
 			return arc.GetPoints(n,pt);
@@ -368,14 +447,30 @@ public:
 			pt.at(i) = posByT(t); 
 		}
 	}
-	double GetScore(Points& pt){
+	double GetScore(Points& pt)override{
 		double sm = 0.0;
 		for(int i = 0; i < pt.size(); i++){
 			sm += distance(pt.at(i));
 		}
 		return sm;
 	}
-
+	double GetEndAngle()override{
+		double len = start_curvature <= end_curvature ? length : -length;
+		double start_R = 1.0 / start_curvature;
+		double end_R = 1.0 / end_curvature;
+		double start_L = end_R * len / (start_R - end_R);
+		double end_L = start_L + len;
+		double start_tau = start_L / (2*start_R);
+		double rota = start_tau - start_angle; // 正規形にするために回転させる角度
+		double angle = start_L / (2*start_R) - rota;
+		if(angle < 2*M_PI){
+			angle += 2*M_PI;
+		}
+		else if(angle < 0){
+			angle += 2*M_PI;
+		}
+		return angle;
+	}
 };
 
 Vec2 solveQuadEq(double a,double b,double c){

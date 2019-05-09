@@ -13,7 +13,7 @@ int main(){
 	Clothoid c(Vec2(3.0,2.0),0.78,1,-1.0,1.0);
 	Points pt;
 	c.GetPoints(n,pt);
-	Clothoid ln = fitClothoid(giv);
+	Arc ln = fitArc(giv);
 	Points pt2;
 	ln.GetPoints(n,pt2);
 	for(int i = 0; i < n; i++){
