@@ -39,9 +39,10 @@ class Points{
 private:
 	int sz;
 	Vec2 * idx;
-	std::vector<int> corner;
 
 public:
+	std::vector<int> corner;
+
 	Points(){ sz = 0; idx = NULL; corner = std::vector<int>(); }
 	Points(int n){ sz = n; idx = (Vec2*)malloc(sizeof(Vec2)*n); }
 	~Points(){ 
@@ -117,7 +118,8 @@ public:
 		}
 		return corner.size();
 	}
-
+	
+	// 先頭が角になるように並びかえ、先頭と最後が同じ点になるようにする
 	Points rearrenge(){
 		Points pt(sz+1);
 		if(corner.empty()){
@@ -142,6 +144,22 @@ public:
 		}
 		return pt;
 	}
+	// 部分切り出し
+	void trim(int begin,int end,Points &dst){
+		dst = Points(end-begin);
+		for(int i = begin; i < end; i++){
+			dst.at(i-begin) = at(i);
+		}
+	}
+
+	bool containCorner(int begin,int end){
+		for(int i = 0; i < corner.size(); i++){
+			if(corner[i] > begin && corner[i] < end-1){
+				return true;
+			}
+		}
+		return false;
+	}
 
 };
 
@@ -165,6 +183,8 @@ public:
 	virtual double GetScore(Points& pt) { return 0.0; }
 
 	virtual double GetEndAngle(){ return 0.0 ;}
+
+	virtual Vec2 GetEndPos(){ return Vec2(); }
 };
 
 class Line : public Primitives{
@@ -207,6 +227,9 @@ public:
 	}
 	double GetEndAngle() override{
 		return start_angle;
+	}
+	Vec2 GetEndPos() override{
+		return start_point + Vec2(length*cos(start_angle),length*sin(start_angle));
 	}
 };
 
@@ -307,6 +330,18 @@ public:
 			angle += 2*M_PI;
 		}
 		return angle;
+	}
+	Vec2 GetEndPos() override{
+		if(fabs(radius()) < 1e-10){
+			Line ln(start_point,start_angle,length);
+			return ln.GetEndPos();
+		}
+		double r = radius();
+		Vec2 vc = vecToCenter();
+		Vec2 vcinv = vc.times(-1);
+		Vec2 center = start_point + vc;
+		double arot = length * start_curvature; // 回転角(時計回り)
+		return center + vcinv.rot(arot);	
 	}
 };
 
@@ -471,6 +506,16 @@ public:
 		}
 		return angle;
 	}
+	Vec2 GetEndPos()override{
+		if(fabs(end_curvature - start_curvature) < 1e-10){
+			Arc arc(start_point,start_angle,length,start_curvature);
+			return arc.GetEndPos();
+		}
+		double B2 = fabs(length / (M_PI*(end_curvature-start_curvature)));
+		double B = sqrt(B2);
+		double end_t =  end_curvature * B;
+		return posByT(end_t); 
+	}
 };
 
 Vec2 solveQuadEq(double a,double b,double c){
@@ -606,8 +651,8 @@ Arc fitArc(Points &pt){
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.000001; // 時間あればMarquardt-Levenberg method
 	double score = arc.GetScore(pt);
-	std::cerr << score << std::endl;
-	for(int i = 0; i < 20; i++){
+//	std::cerr << score << std::endl;
+	for(int i = 0; i < 10; i++){
 		derivArc(arc,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
@@ -628,7 +673,7 @@ Arc fitArc(Points &pt){
 		}
 		score = next.GetScore(pt);
 		arc = next;
-		std::cerr << score << std::endl;
+//		std::cerr << score << std::endl;
 	}
 	// 最後に適切にクランプする必要あり
 	double r = fabs(1.0 / arc.start_curvature);
@@ -708,7 +753,7 @@ Clothoid fitClothoid(Points& pt){
 	Eigen::MatrixXd tdF; // 要素数,パラメタ数
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(6,6) * 0.000001; // 時間あればMarquardt-Levenberg method
 	double score = cl.GetScore(pt);
-	for(int i = 0; i < 20; i++){
+	for(int i = 0; i < 10; i++){
 		derivClothoid(cl,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
@@ -730,7 +775,7 @@ Clothoid fitClothoid(Points& pt){
 		}
 		score = next.GetScore(pt);
 		cl = next;
-		std::cerr << score << std::endl;
+//		std::cerr << score << std::endl;
 	}
 	// TODO クランプ
 	

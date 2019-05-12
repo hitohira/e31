@@ -1,8 +1,32 @@
 #include <bits/stdc++.h>
 #include "primitives.h"
+#include "graph.h"
 using namespace std;
 
 int main(){
+	FILE* fp1 = fopen("./16/shape3_boundary.txt","r");
+	FILE* fp2 = fopen("./16/shape3_corners.txt","r");
+	if(fp1 == NULL || fp2 == NULL){
+		cerr << "fopen failed" << endl;
+		return -1;
+	}
+	Points pt;
+	pt.readPoints(fp1);
+	pt.readCornerIdx(fp2);
+	fclose(fp1);
+	fclose(fp2);
+
+
+	cerr << "G" << endl;
+	Points pl = pt.rearrenge();
+	Graph G(pl);
+	cerr << "D" << endl;
+	G.dijkstra();
+	cerr << "Path" << endl;
+	for(int i = 0; i < G.shortestPath.size(); i++){
+		cerr << G.shortestPath[i] << endl;
+	}
+	/*
 	int n = 40;
 	Points giv(5);
 	giv.at(0) = Vec2(0,0);
@@ -25,5 +49,6 @@ int main(){
 //		cout << pt.at(i).x << " " << pt.at(i).y << " " << endl;
 	}
 //	cout << c.distance(Vec2(9.5,2.5)) << endl;
+*/
 	return 0;
 }
