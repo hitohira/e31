@@ -4,8 +4,8 @@
 using namespace std;
 
 int main(){
-	FILE* fp1 = fopen("./16/shape3_boundary.txt","r");
-	FILE* fp2 = fopen("./16/shape3_corners.txt","r");
+	FILE* fp1 = fopen("./debug/boundary.txt","r");
+	FILE* fp2 = fopen("./debug/corners.txt","r");
 	if(fp1 == NULL || fp2 == NULL){
 		cerr << "fopen failed" << endl;
 		return -1;

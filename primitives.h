@@ -197,6 +197,7 @@ public:
 		Vec2 vv = start_point - v;
 		Vec2 ab(length*cos(start_angle),length*sin(start_angle));
 		double aabb = ab.x*ab.x + ab.y*ab.y;
+//		std::cerr << "AB" << length << " " << start_angle << " " << ab.x << " " << ab.y << " " << aabb << std::endl;
 		double t = -(ab.x*vv.x + ab.y*vv.y);
 		if(t < 0){
 			return vv.norm2();	
@@ -222,7 +223,9 @@ public:
 		double sm = 0.0;
 		for(int i = 0; i < pt.size(); i++){
 			sm += distance(pt.at(i));
+//			std::cerr << "P" << pt.at(i).x << " " << pt.at(i).y << std::endl;
 		}
+		std::cerr << sm << std::endl;
 		return sm;
 	}
 	double GetEndAngle() override{
@@ -341,6 +344,7 @@ public:
 		Vec2 vcinv = vc.times(-1);
 		Vec2 center = start_point + vc;
 		double arot = length * start_curvature; // 回転角(時計回り)
+		std::cerr << "EP" << start_point.norm1() << " " << center.norm1() << " " <<  (center+vcinv.rot(arot)).norm1() << std::endl;
 		return center + vcinv.rot(arot);	
 	}
 };
@@ -520,6 +524,7 @@ public:
 
 Vec2 solveQuadEq(double a,double b,double c){
 	double d = b*b-4*a*c;
+//	std::cerr << "SOL" << a << " " << b << " " << c << " " << d << " " << std::endl;
 	if(b > 0){
 		double x =(-b-sqrt(d))/(2*a);
 		return Vec2(x,c/a/x);
@@ -544,12 +549,23 @@ Line fitLine(Points &pt){
 		c += sub.x * sub.y;
 		d += sub.y * sub.y;
 	}
-	Vec2 x = solveQuadEq(1.0,-(a+b),a*d-b*c);
+	Vec2 x = solveQuadEq(1.0,-(a+d),a*d-b*c);
 	double l = fmax(x.x,x.y); // 最大固有値
 	Vec2 lv(b,-a+l);
-	lv = lv.times(1.0/lv.norm2()); // これが傾き
+//	std::cerr << "PRM" << a << " " << b << " " << c << " " << d << std::endl;
+//	std::cerr << x.x << " " << x.y << " " << lv.x << " " << lv.y << std::endl;
+	if(fabs(a) < 1e-10){
+		lv = Vec2(0,1);
+	}
+	else if(fabs(d) < 1e-10){
+		lv = Vec2(1,0);
+	}
+	else{
+		lv = lv.times(1.0/lv.norm2()); // これが傾き
+	}
 	// mbarをとおる
 	Vec2 m1 = pt.at(0) - mbar;
+//	std::cerr << "FIT" << l << " " <<  lv.x << " " << lv.y << " " << m1.x << " " << m1.y << std::endl;
 	Vec2 startPos = mbar + lv.times(m1.dot(lv));
 	Vec2 mn = pt.at(pt.size()-1) - mbar;
 	Vec2 endPos = mbar + lv.times(mn.dot(lv));
@@ -658,6 +674,7 @@ Arc fitArc(Points &pt){
 		Eigen::VectorXd b = -tdF * F;
 		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
 		Eigen::VectorXd dx = lu.solve(b);
+		std::cerr << dx.norm() << " " << b.norm() << " ";
 		if(dx.norm() < 1e-4){
 			break;
 		}
@@ -689,6 +706,7 @@ Arc fitArc(Points &pt){
 	double sint = sgn * stv.cross(edv) / (stv.norm2() * edv.norm2());
 	double theta = sint >= 0 ? acos(cost) : 2*M_PI - acos(cost); // 中心角
 	double len = r * theta;
+	std::cerr << "ARC" << arc.start_curvature << " " << r << " " << center.norm1() << " " << startPos.norm1() << std::endl;
 	return Arc(startPos,angle,len,arc.start_curvature);
 }
 

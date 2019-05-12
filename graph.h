@@ -25,6 +25,7 @@ public:
 	Vertex(){
 		prim = NULL;
 		type = TYPE_NONE;
+		cost = 0;
 	}
 	Vertex(Primitives* prim,int type,double cost,int begin,int end){
 		this->prim = prim;
@@ -78,9 +79,11 @@ public:
 			}
 			else{
 				lines[i] = fitLine(ps[i].pt);
+				std::cerr << "L" << ps[i].pt.size() << std::endl;
 				vs[cntr++] = Vertex(&lines[i],TYPE_LINE,lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 				arcs[i] = fitArc(ps[i].pt);
 				vs[cntr++] = Vertex(&arcs[i],TYPE_ARC,arcs[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+				std::cerr << "SC" << arcs[i].GetScore(ps[i].pt) << std::endl;
 				clothoids[i] = fitClothoid(ps[i].pt);
 				vs[cntr++] = Vertex(&clothoids[i],TYPE_CLOTHOID,clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 			}
@@ -93,10 +96,10 @@ public:
 	
 	void PointsSubset(Points& pt){
 		int end = pt.size();
-		ps = std::vector<PInfo>(end*(end+1)/2);
+		ps = std::vector<PInfo>(end*(end-1)/2);
 		int cntr = 0;
 		for(int i = 0; i < end; i++){
-			for(int j = i+1; j <= end; j++){
+			for(int j = i+2; j <= end; j++){
 				pt.trim(i,j,ps[cntr].pt);
 				ps[cntr].begin = i;
 				ps[cntr].end = j;
@@ -134,6 +137,7 @@ public:
 				// TODO
 					double add = (vs.vs[j].prim->start_point - vs.vs[i].prim->GetEndPos()).norm1();
 					es[i].push_back(std::make_pair(j,(vs.vs[i].cost + vs.vs[j].cost)/2+add));
+	//				std::cerr << "FE" << vs.vs[j].type << " " << vs.vs[i].type << " " << vs.vs[i].prim->GetEndPos().norm1() << " " << vs.vs[j].prim->start_point.norm1()  << " " << add << " " << (vs.vs[i].cost + vs.vs[j].cost)/2+add << std::endl;
 				}
 				else if(vs.vs[i].end -2 == vs.vs[j].begin && std::find(pt.corner.begin(),pt.corner.end(),vs.vs[j].begin) == pt.corner.end()){
 				// 辺でつながるとき
@@ -202,6 +206,7 @@ public:
 			if(d[v] < p.first) continue;
 			for(int i = 0; i < E.es[v].size(); i++){
 				Pr e = E.es[v][i]; // <int,double>
+	//			std::cerr << v << " " << d[e.first] <<  " " << d[v] << " " << e.second << " " << E.es[v].size() << std::endl;
 				if(d[e.first] > d[v] + e.second){
 					d[e.first] = d[v] + e.second;
 					from[e.first] = v;
@@ -210,6 +215,10 @@ public:
 			}
 		}
 
+//		for(int i = 0; i < V.size(); i++){
+//			std::cerr <<i << " " << d[i] << " " << from[i] << " ";
+//			std::cerr << std::endl;
+//		}
 		std::cerr << "back: s,t =" << s << "," << t << std::endl;
 		
 		int back = t;
