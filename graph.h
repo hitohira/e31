@@ -70,7 +70,7 @@ public:
 		clothoids = std::vector<Clothoid>(end);
 		vs = std::vector<Vertex>(end*3+2);
 		int cntr = 0;
-		std::cerr << end << std::endl;
+//		std::cerr << end << std::endl;
 		for(int i = 0; i < end; i++){
 			if(ps[i].contain_corner){
 				vs[cntr++] =Vertex(); 
@@ -78,14 +78,15 @@ public:
 				vs[cntr++] =Vertex(); 
 			}
 			else{
+				double alpha = 1.0;
 				lines[i] = fitLine(ps[i].pt);
-				std::cerr << "L" << ps[i].pt.size() << std::endl;
-				vs[cntr++] = Vertex(&lines[i],TYPE_LINE,lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+//				std::cerr << "L" << ps[i].pt.size() << std::endl;
+				vs[cntr++] = Vertex(&lines[i],TYPE_LINE,alpha*1+lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 				arcs[i] = fitArc(ps[i].pt);
-				vs[cntr++] = Vertex(&arcs[i],TYPE_ARC,arcs[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
-				std::cerr << "SC" << arcs[i].GetScore(ps[i].pt) << std::endl;
+				vs[cntr++] = Vertex(&arcs[i],TYPE_ARC,alpha*2+arcs[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+//				std::cerr << "SC" << arcs[i].GetScore(ps[i].pt) << std::endl;
 				clothoids[i] = fitClothoid(ps[i].pt);
-				vs[cntr++] = Vertex(&clothoids[i],TYPE_CLOTHOID,clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+				vs[cntr++] = Vertex(&clothoids[i],TYPE_CLOTHOID,alpha*4+clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 			}
 			if(i % 100 == 0)
 				std::cerr << i << std::endl;
@@ -161,7 +162,7 @@ public:
 			else if(vs.vs[i].begin == 0){
 				es[idxS].push_back(std::make_pair(i,1.0)); // 始点と結ぶ
 			}
-			else if(vs.vs[i].end == pt.size()-1){ 
+			else if(vs.vs[i].end == pt.size()){ 
 				es[i].push_back(std::make_pair(idxE,1.0)); // 終点と結ぶ
 			}
 		}
@@ -186,6 +187,7 @@ public:
 	}
 	
 	void dijkstra(){
+		shortestPath = std::vector<int>();
 		int s = V.size()-2; // 始点
 		int t = V.size()-1; // 終点
 		double* d = new double[V.size()];
@@ -234,6 +236,21 @@ public:
 		std::reverse(shortestPath.begin(),shortestPath.end());
 		delete[] d;
 		delete[] from;
+	}
+
+	Points GetAllPoints(){
+		dijkstra();
+		int n = 10;
+		Points res((shortestPath.size()-2)*n+1);
+		for(int i = 1; i < shortestPath.size()-1; i++){ // 始点と終点を除く	
+			Points pt;
+			V.vs[shortestPath[i]].prim->GetPoints(n,pt);
+			for(int j = 0; j < n; j++){
+				res.at((i-1)*n+j) = pt.at(j);
+			}
+		}
+		res.at(res.size()-1) = res.at(0);
+		return res;
 	}
 };
 

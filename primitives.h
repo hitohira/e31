@@ -82,6 +82,17 @@ public:
 		return *this;
 	}
 
+	void print(){
+		std::cerr << "POINTS" << std::endl;
+		for(int i = 0; i < size(); i++){
+			std::cerr << at(i).x << " " <<  at(i).y << std::endl;
+		}
+		std::cerr << "CORNER" << std::endl;
+		for(int i = 0; i < corner.size(); i++){
+			std::cerr << corner[i] << std::endl;
+		}
+	}
+
 	Vec2 average(){
 		Vec2 sum;
 		for(int i = 0; i < sz; i++){
@@ -225,7 +236,7 @@ public:
 			sm += distance(pt.at(i));
 //			std::cerr << "P" << pt.at(i).x << " " << pt.at(i).y << std::endl;
 		}
-		std::cerr << sm << std::endl;
+//		std::cerr << sm << std::endl;
 		return sm;
 	}
 	double GetEndAngle() override{
@@ -344,7 +355,7 @@ public:
 		Vec2 vcinv = vc.times(-1);
 		Vec2 center = start_point + vc;
 		double arot = length * start_curvature; // 回転角(時計回り)
-		std::cerr << "EP" << start_point.norm1() << " " << center.norm1() << " " <<  (center+vcinv.rot(arot)).norm1() << std::endl;
+//		std::cerr << "EP" << start_point.norm1() << " " << center.norm1() << " " <<  (center+vcinv.rot(arot)).norm1() << std::endl;
 		return center + vcinv.rot(arot);	
 	}
 };
@@ -554,11 +565,13 @@ Line fitLine(Points &pt){
 	Vec2 lv(b,-a+l);
 //	std::cerr << "PRM" << a << " " << b << " " << c << " " << d << std::endl;
 //	std::cerr << x.x << " " << x.y << " " << lv.x << " " << lv.y << std::endl;
-	if(fabs(a) < 1e-10){
-		lv = Vec2(0,1);
+	if(fabs(a) < 1e-10){ // このへん-1の可能性あり
+		Vec2 vsub = pt.at(pt.size()-1) - pt.at(0);
+		lv = vsub.times(1.0/vsub.norm2());
 	}
 	else if(fabs(d) < 1e-10){
-		lv = Vec2(1,0);
+		Vec2 vsub = pt.at(pt.size()-1) - pt.at(0);
+		lv = vsub.times(1.0/vsub.norm2());
 	}
 	else{
 		lv = lv.times(1.0/lv.norm2()); // これが傾き
@@ -674,7 +687,7 @@ Arc fitArc(Points &pt){
 		Eigen::VectorXd b = -tdF * F;
 		Eigen::PartialPivLU<Eigen::MatrixXd> lu(A);
 		Eigen::VectorXd dx = lu.solve(b);
-		std::cerr << dx.norm() << " " << b.norm() << " ";
+//		std::cerr << dx.norm() << " " << b.norm() << " ";
 		if(dx.norm() < 1e-4){
 			break;
 		}
@@ -706,7 +719,7 @@ Arc fitArc(Points &pt){
 	double sint = sgn * stv.cross(edv) / (stv.norm2() * edv.norm2());
 	double theta = sint >= 0 ? acos(cost) : 2*M_PI - acos(cost); // 中心角
 	double len = r * theta;
-	std::cerr << "ARC" << arc.start_curvature << " " << r << " " << center.norm1() << " " << startPos.norm1() << std::endl;
+//	std::cerr << "ARC" << arc.start_curvature << " " << r << " " << center.norm1() << " " << startPos.norm1() << std::endl;
 	return Arc(startPos,angle,len,arc.start_curvature);
 }
 
