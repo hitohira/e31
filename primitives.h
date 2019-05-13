@@ -195,7 +195,7 @@ public:
 
 	void reshape(double range,Vec2 center){
 		for(int i = 0; i < size(); i++){
-			at(i) = (at(i) - center).times(1.9/range);
+			at(i) = (at(i) - center).times(1.8/range);
 		}
 	}
 };

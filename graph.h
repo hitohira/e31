@@ -77,7 +77,7 @@ public:
 				vs[i*3+2] =Vertex(); 
 			}
 			else{
-				double alpha = 0.7;
+				double alpha = 0.9;
 				lines[i] = fitLine(ps[i].pt);
 //				std::cerr << "L" << ps[i].pt.size() << std::endl;
 				vs[i*3] = Vertex(&lines[i],TYPE_LINE,alpha*1+lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
