@@ -9,20 +9,25 @@
 		<link rel="stylesheet" type="text/css" src="style.css">
 	</head>	
 	<body>
-		<div>
-			<canvas id="glcanvas" width="800" height="800" 
+		<div id="left">
+			<canvas id="glcanvas" width="700" height="700" 
 				onmousedown="mouseDown(event)" 
 				onmouseup="mouseUp()"
 				ondblclick="dblClick(event)"></canvas>
 			<script> main();</script>
-		</div>
-		<div>
 			<ul>
 				<li>青が入力データ、赤がフィッティングした出力データ</li>
 				<li>ダブルクリックしたところに中心が移動</li>
 				<li>上にドラッグで拡大</li>
 				<li>下にドラッグで縮小</li>
 			</ul>
+		</div>
+		<div id="right">
+			<form name="form">
+				<input type="checkbox" name="curve" checked="checked" value="フィッティング曲線">フィッティング曲線<br>
+				<input type="checkbox" name="curve" checked="checked" value="入力データ">入力データ<br>
+				<input type="button" value="選択" onclick="checkCurve();">
+			</form>
 		</div>
 	</body>
 

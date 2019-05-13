@@ -6,12 +6,19 @@ var programInfo;
 //extern var pres;
 //extern var color_p;
 
+var fit_en = true;
+var pre_en = true;
 var down = false;
 var down_x;
 var down_y;
 /////////////////////////////////////////
 /// mouse event
 /////////////////////////////////////////
+function checkCurve(){
+	fit_en = document.form.curve[0].checked;
+	pre_en = document.form.curve[1].checked;
+	drawScene();
+}
 
 function mouseDown(event){
 	down = true;
@@ -139,7 +146,7 @@ function drawScene(){
 		vCount : pres.length / 3,
 	};
 	// draw curve
-	if(true){
+	if(pre_en){
 		{	
 			const numComponents = 3;
 			const type = gl.FLOAT;
@@ -178,7 +185,7 @@ function drawScene(){
 			gl.drawArrays(gl.POINTS,offset,vertexCount);
 		}
 	}
-	if(true){
+	if(fit_en){
 		{	
 			const numComponents = 3;
 			const type = gl.FLOAT;
