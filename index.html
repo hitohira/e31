@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+	<head>
+		<title>演習3デモ</title>
+		<meta charset="utf-8">
+		<script src="gl-matrix.js"></script>
+		<script src="data.js"></script>
+		<script src="display.js"></script>
+		<link rel="stylesheet" type="text/css" src="style.css">
+	</head>	
+	<body>
+		<div>
+			<canvas id="glcanvas" width="800" height="800" 
+				onmousedown="mouseDown(event)" 
+				onmouseup="mouseUp()"
+				ondblclick="dblClick(event)"></canvas>
+			<script> main();</script>
+		</div>
+		<div>
+			<ul>
+				<li>青が入力データ、赤がフィッティングした出力データ</li>
+				<li>ダブルクリックしたところに中心が移動</li>
+				<li>上にドラッグで拡大</li>
+				<li>下にドラッグで縮小</li>
+			</ul>
+		</div>
+	</body>
+
+</html>

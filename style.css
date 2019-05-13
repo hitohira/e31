@@ -1,0 +1,11 @@
+canvas{
+	width: 300px;
+	height: 300px;
+}
+
+#left{
+	float : left;
+}
+#right{
+	float: right;
+}

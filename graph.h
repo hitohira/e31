@@ -77,7 +77,7 @@ public:
 				vs[i*3+2] =Vertex(); 
 			}
 			else{
-				double alpha = 1.0;
+				double alpha = 0.7;
 				lines[i] = fitLine(ps[i].pt);
 //				std::cerr << "L" << ps[i].pt.size() << std::endl;
 				vs[i*3] = Vertex(&lines[i],TYPE_LINE,alpha*1+lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
@@ -88,7 +88,7 @@ public:
 				clothoids[i] = Clothoid();
 				vs[i*3+2] = Vertex(&clothoids[i],TYPE_CLOTHOID,alpha*4+clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 			}
-			if(i % 100 == 0)
+			if(i % 1000 == 0)
 				std::cerr << i << std::endl;
 		}
 		vs[vs.size()-2] = Vertex();

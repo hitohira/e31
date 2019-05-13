@@ -34,6 +34,12 @@ public:
 	Vec2 rot(double theta){ return Vec2(x*cos(theta) - y*sin(theta),x*sin(theta)+y*cos(theta)); }
 };
 
+typedef struct{
+	double top;
+	double bottom;
+	double left;
+	double right;
+} RT;
 
 class Points{
 private:
@@ -172,6 +178,26 @@ public:
 		return false;
 	}
 
+	RT GetRect(){
+		RT res;
+		res.top = res.bottom = at(0).y;
+		res.left = res.right = at(0).x;
+		for(int i = 1; i < size(); i++){
+			double x = at(i).x;
+			double y = at(i).y;	
+			if(res.top < y) res.top = y;
+			if(res.bottom > y) res.bottom = y;
+			if(res.left > x) res.left = x;
+			if(res.right < x) res.right = x;
+		}
+		return res;
+	}
+
+	void reshape(double range,Vec2 center){
+		for(int i = 0; i < size(); i++){
+			at(i) = (at(i) - center).times(1.9/range);
+		}
+	}
 };
 
 
@@ -681,7 +707,7 @@ Arc fitArc(Points &pt){
 	Eigen::MatrixXd lambdaI = Eigen::MatrixXd::Identity(5,5) * 0.000001; // 時間あればMarquardt-Levenberg method
 	double score = arc.GetScore(pt);
 //	std::cerr << score << std::endl;
-	for(int i = 0; i < 10; i++){
+	for(int i = 0; i < 20; i++){
 		derivArc(arc,pt,F,dF,tdF);
 		Eigen::MatrixXd A = tdF * dF + lambdaI;
 		Eigen::VectorXd b = -tdF * F;
