@@ -69,30 +69,30 @@ public:
 		arcs = std::vector<Arc>(end);
 		clothoids = std::vector<Clothoid>(end);
 		vs = std::vector<Vertex>(end*3+2);
-		int cntr = 0;
 //		std::cerr << end << std::endl;
 		for(int i = 0; i < end; i++){
 			if(ps[i].contain_corner){
-				vs[cntr++] =Vertex(); 
-				vs[cntr++] =Vertex(); 
-				vs[cntr++] =Vertex(); 
+				vs[i*3] =Vertex(); 
+				vs[i*3+1] =Vertex(); 
+				vs[i*3+2] =Vertex(); 
 			}
 			else{
 				double alpha = 1.0;
 				lines[i] = fitLine(ps[i].pt);
 //				std::cerr << "L" << ps[i].pt.size() << std::endl;
-				vs[cntr++] = Vertex(&lines[i],TYPE_LINE,alpha*1+lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+				vs[i*3] = Vertex(&lines[i],TYPE_LINE,alpha*1+lines[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 				arcs[i] = fitArc(ps[i].pt);
-				vs[cntr++] = Vertex(&arcs[i],TYPE_ARC,alpha*2+arcs[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+				vs[i*3+1] = Vertex(&arcs[i],TYPE_ARC,alpha*2+arcs[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 //				std::cerr << "SC" << arcs[i].GetScore(ps[i].pt) << std::endl;
-				clothoids[i] = fitClothoid(ps[i].pt);
-				vs[cntr++] = Vertex(&clothoids[i],TYPE_CLOTHOID,alpha*4+clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
+//				clothoids[i] = fitClothoid(ps[i].pt);
+				clothoids[i] = Clothoid();
+				vs[i*3+2] = Vertex(&clothoids[i],TYPE_CLOTHOID,alpha*4+clothoids[i].GetScore(ps[i].pt),ps[i].begin,ps[i].end);
 			}
 			if(i % 100 == 0)
 				std::cerr << i << std::endl;
 		}
-		vs[cntr++] = Vertex();
-		vs[cntr++] = Vertex();
+		vs[vs.size()-2] = Vertex();
+		vs[vs.size()-1] = Vertex();
 	}
 	
 	void PointsSubset(Points& pt){
@@ -140,10 +140,13 @@ public:
 					es[i].push_back(std::make_pair(j,(vs.vs[i].cost + vs.vs[j].cost)/2+add));
 	//				std::cerr << "FE" << vs.vs[j].type << " " << vs.vs[i].type << " " << vs.vs[i].prim->GetEndPos().norm1() << " " << vs.vs[j].prim->start_point.norm1()  << " " << add << " " << (vs.vs[i].cost + vs.vs[j].cost)/2+add << std::endl;
 				}
-				else if(vs.vs[i].end -2 == vs.vs[j].begin && std::find(pt.corner.begin(),pt.corner.end(),vs.vs[j].begin) == pt.corner.end()){
+				else if(vs.vs[i].end -1 == vs.vs[j].begin && std::find(pt.corner.begin(),pt.corner.end(),vs.vs[j].begin) == pt.corner.end()){
 				// 辺でつながるとき
 				// TODO
-					double add = (fabs(vs.vs[i].prim->length)+fabs(vs.vs[j].prim->length))/2*
+				//	double add = (fabs(vs.vs[i].prim->length)+fabs(vs.vs[j].prim->length))/2*
+				//		((vs.vs[j].prim->start_point - vs.vs[i].prim->GetEndPos()).norm1() +
+				//		fabs(vs.vs[j].prim->start_angle - vs.vs[i].prim->GetEndAngle()));
+					double add = 
 						((vs.vs[j].prim->start_point - vs.vs[i].prim->GetEndPos()).norm1() +
 						fabs(vs.vs[j].prim->start_angle - vs.vs[i].prim->GetEndAngle()));
 					es[i].push_back(std::make_pair(j,(vs.vs[i].cost + vs.vs[j].cost)/2 + add));
@@ -240,7 +243,7 @@ public:
 
 	Points GetAllPoints(){
 		dijkstra();
-		int n = 10;
+		int n = 50;
 		Points res((shortestPath.size()-2)*n+1);
 		for(int i = 1; i < shortestPath.size()-1; i++){ // 始点と終点を除く	
 			Points pt;
